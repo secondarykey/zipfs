@@ -66,14 +66,20 @@ func (r *reader) ReadAt(p []byte, off int64) (n int, err error) {
 }
 
 func (r *reader) Close() error {
+
 	if r == nil {
 		return nil
 	}
+
 	r.data = nil
-	if r.zipFile == nil {
-		return nil
+	if r.zipReader != nil {
+		r.zipReader.Close()
 	}
-	return r.zipFile.Close()
+
+	if r.zipFile != nil {
+		return r.zipFile.Close()
+	}
+	return nil
 }
 
 func (r *reader) IsClose() bool {
