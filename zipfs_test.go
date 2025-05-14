@@ -68,6 +68,26 @@ func TestNewZipFile(t *testing.T) {
 
 }
 
+func TestReadDir(t *testing.T) {
+	z, err := zipfs.New(dir, "web.zip")
+	if err != nil {
+		t.Fatalf("zipfs.New() error: %v", err)
+	}
+
+	dirs, err := z.ReadDir("assets")
+	if err != nil {
+		t.Fatalf("zipfs.ReadDir() error: %v", err)
+	}
+
+	if len(dirs) != 2 {
+		t.Errorf("2 not %v", len(dirs))
+	}
+
+}
+
+//func TestReadFile(t *testing.T) {
+//func TestStat(t *testing.T) {
+
 func TestInit(t *testing.T) {
 
 	z, err := zipfs.New(dir, "web.zip")

@@ -46,11 +46,9 @@ func (f *ZipFS) Open(name string) (fs.File, error) {
 
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if f.reader.IsClose() {
-		err := f.Init()
-		if err != nil {
-			return nil, xerrors.Errorf("Init() error: %w", err)
-		}
+	err := f.Init()
+	if err != nil {
+		return nil, xerrors.Errorf("Init() error: %w", err)
 	}
 
 	file, err := f.reader.Open(name)
@@ -63,27 +61,50 @@ func (f *ZipFS) Open(name string) (fs.File, error) {
 // fs.ReadFileFS
 func (f *ZipFS) ReadFile(name string) ([]byte, error) {
 
-	f, err := f.Open(name)
+	fp, err := f.Open(name)
 	if err != nil {
 		return nil, xerrors.Errorf("fs.Open() error: %w", err)
 	}
-	defer f.Close()
+	defer fp.Close()
 
-	reader, err := f.Open()
-	if err != nil {
-		return nil, xerrors.Errorf("file.Open() error: %w", err)
-	}
-	defer reader.Close()
-
-	data, err := io.ReadAll(reader)
+	data, err := io.ReadAll(fp)
 	if err != nil {
 		return nil, xerrors.Errorf("io.ReadAll() error: %w", err)
 	}
+	return data, nil
+}
 
-	return nil
+// fs.ReadDirFS
+func (f *ZipFS) ReadDir(name string) ([]fs.DirEntry, error) {
+
+	info, err := f.Stat(name)
+	if err != nil {
+		return nil, xerrors.Errorf("fs.Stat() error: %w", err)
+	}
+
+	if !info.IsDir() {
+		return nil, xerrors.Errorf("%s not Directory", name)
+	}
+	return f.reader.readDir(info.Name() + "/")
+}
+
+// fs.StatFS
+func (f *ZipFS) Stat(name string) (fs.FileInfo, error) {
+
+	fp, err := f.Open(name)
+	if err != nil {
+		return nil, xerrors.Errorf("fs.Open() error: %w", err)
+	}
+	defer fp.Close()
+
+	return fp.Stat()
 }
 
 func (f *ZipFS) Init() error {
+
+	if !f.reader.IsClose() {
+		return nil
+	}
 
 	err := f.reader.init()
 	if err != nil {
@@ -105,9 +126,6 @@ func (f *ZipFS) Release() error {
 
 // fs.GlobFS
 //func (f *ZipFS) Glob(pattern string) ([]string,error)
-
-// fs.ReadDirFS
-//func (f *ZipFS) ReadDir(name string) ([]DirEntry,error)
 
 // fs.SubFS
 //func (f *ZipFS) Sub(name string) (fs.FS,error)

@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"io"
 	"io/fs"
+	"strings"
 
 	"golang.org/x/xerrors"
 )
@@ -54,6 +55,47 @@ func (r *reader) Open(name string) (fs.File, error) {
 	return r.zipReader.Open(name)
 }
 
+type dirEntry struct {
+	f *zip.File
+}
+
+func newDir(f *zip.File) *dirEntry {
+	var d dirEntry
+	d.f = f
+	return &d
+}
+
+func (d dirEntry) Name() string {
+	return d.f.Name
+}
+
+func (d dirEntry) IsDir() bool {
+	return d.f.Mode().IsDir()
+}
+
+func (d dirEntry) Type() fs.FileMode {
+	return d.f.Mode().Type()
+}
+
+func (d dirEntry) Info() (fs.FileInfo, error) {
+	return d.f.FileInfo(), nil
+}
+
+func (r *reader) readDir(name string) ([]fs.DirEntry, error) {
+
+	files := r.zipReader.File
+	var rtn []fs.DirEntry
+
+	for _, f := range files {
+		if strings.HasPrefix(f.Name, name) {
+			if f.Name != name {
+				rtn = append(rtn, newDir(f))
+			}
+		}
+	}
+	return rtn, nil
+}
+
 func (r *reader) ReadAt(p []byte, off int64) (n int, err error) {
 	if off >= int64(len(r.data)) {
 		return 0, io.EOF
@@ -73,7 +115,7 @@ func (r *reader) Close() error {
 
 	r.data = nil
 	if r.zipReader != nil {
-		r.zipReader.Close()
+		//r.zipReader.Close()
 	}
 
 	if r.zipFile != nil {
