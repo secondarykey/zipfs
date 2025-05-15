@@ -12,11 +12,11 @@ import (
 
 type ZipFS struct {
 	reader *reader
-
-	mu sync.Mutex
+	mu     sync.Mutex
 }
 
 func NewZipFile(name string) (*ZipFS, error) {
+
 	dir := filepath.Dir(name)
 	base := filepath.Base(name)
 
@@ -27,17 +27,13 @@ func NewZipFile(name string) (*ZipFS, error) {
 
 func New(dir fs.FS, name string) (*ZipFS, error) {
 
-	_, err := fs.Stat(dir, name)
-	if err != nil {
-		return nil, xerrors.Errorf("FS Stat() error: %w", err)
-	}
-
+	var err error
 	var z ZipFS
+
 	z.reader, err = NewReader(dir, name)
 	if err != nil {
 		return nil, xerrors.Errorf("zipfs.NewReader() error: %w", err)
 	}
-
 	return &z, nil
 }
 
@@ -55,6 +51,7 @@ func (f *ZipFS) Open(name string) (fs.File, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("reader Open() error: %w", err)
 	}
+
 	return file, nil
 }
 
@@ -85,7 +82,8 @@ func (f *ZipFS) ReadDir(name string) ([]fs.DirEntry, error) {
 	if !info.IsDir() {
 		return nil, xerrors.Errorf("%s not Directory", name)
 	}
-	return f.reader.readDir(info.Name() + "/")
+
+	return f.reader.readDir(name)
 }
 
 // fs.StatFS
@@ -98,6 +96,18 @@ func (f *ZipFS) Stat(name string) (fs.FileInfo, error) {
 	defer fp.Close()
 
 	return fp.Stat()
+}
+
+// fs.GlobFS
+func (f *ZipFS) Glob(pattern string) ([]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	err := f.Init()
+	if err != nil {
+		return nil, xerrors.Errorf("Init() error: %w", err)
+	}
+
+	return f.reader.glob(pattern)
 }
 
 func (f *ZipFS) Init() error {
@@ -123,9 +133,6 @@ func (f *ZipFS) Release() error {
 	}
 	return nil
 }
-
-// fs.GlobFS
-//func (f *ZipFS) Glob(pattern string) ([]string,error)
 
 // fs.SubFS
 //func (f *ZipFS) Sub(name string) (fs.FS,error)

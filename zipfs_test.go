@@ -1,12 +1,11 @@
 package zipfs_test
 
 import (
+	"embed"
+	"io/fs"
 	"testing"
 
 	"github.com/secondarykey/zipfs"
-
-	"embed"
-	"io/fs"
 )
 
 //go:embed examples/embed/*
@@ -77,12 +76,44 @@ func TestReadDir(t *testing.T) {
 	dirs, err := z.ReadDir("assets")
 	if err != nil {
 		t.Fatalf("zipfs.ReadDir() error: %v", err)
+	} else if len(dirs) != 2 {
+		t.Errorf("assets children 2 not %d", len(dirs))
 	}
 
-	if len(dirs) != 2 {
-		t.Errorf("2 not %v", len(dirs))
+	dirs, err = z.ReadDir("")
+	if err != nil {
+		t.Fatalf("zipfs.ReadDir() error: %v", err)
+	} else if len(dirs) != 2 {
+		t.Errorf("root 2 not %v", len(dirs))
+	}
+}
+
+func TestGlob(t *testing.T) {
+	z, err := zipfs.New(dir, "web.zip")
+	if err != nil {
+		t.Fatalf("zipfs.New() error: %v", err)
 	}
 
+	files, err := z.Glob("*.webp")
+	if err != nil {
+		t.Errorf("Glob(*.webp) error: %v", err)
+	}
+
+	if len(files) != 1 {
+		t.Errorf("Glob(*.webp) length error: %v", len(files))
+	}
+
+	if files[0] != "assets/zipfs.webp" {
+		t.Errorf("Glob(*.webp) name error: %v", files[0])
+	}
+
+	files, err = z.Glob("*.*")
+	if err != nil {
+		t.Errorf("Glob(*.*) error: %v", err)
+	}
+	if len(files) != 3 {
+		t.Errorf("Glob(*.*) length error: %v", len(files))
+	}
 }
 
 //func TestReadFile(t *testing.T) {
@@ -118,4 +149,23 @@ func TestInit(t *testing.T) {
 	if err != nil {
 		t.Errorf("zipfs Open() error: %v", err)
 	}
+}
+
+func TestWalkDir(t *testing.T) {
+
+	z, err := zipfs.New(dir, "web.zip")
+	if err != nil {
+		t.Fatalf("zipfs.New() error: %v", err)
+	}
+
+	cnt := 0
+	fs.WalkDir(z, "", func(path string, d fs.DirEntry, err error) error {
+		cnt++
+		return nil
+	})
+
+	if cnt != 5 {
+		t.Errorf("WalkDir cnt error: want 5 got %d ", cnt)
+	}
+
 }

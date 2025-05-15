@@ -2,8 +2,10 @@ package zipfs
 
 import (
 	"archive/zip"
+	"errors"
 	"io"
 	"io/fs"
+	"path/filepath"
 	"strings"
 
 	"golang.org/x/xerrors"
@@ -13,6 +15,7 @@ type reader struct {
 	dir  fs.FS
 	name string
 
+	root    *rootFile
 	zipFile fs.File
 
 	data      []byte
@@ -20,9 +23,17 @@ type reader struct {
 }
 
 func NewReader(dir fs.FS, name string) (*reader, error) {
+
+	info, err := fs.Stat(dir, name)
+	if err != nil {
+		return nil, xerrors.Errorf("FS Stat() error: %w", err)
+	}
+
 	var r reader
+	r.root = newRoot(info)
 	r.dir = dir
 	r.name = name
+
 	return &r, nil
 }
 
@@ -52,33 +63,16 @@ func (r *reader) init() error {
 }
 
 func (r *reader) Open(name string) (fs.File, error) {
-	return r.zipReader.Open(name)
-}
+	if name == "" {
+		return r.root, nil
+	}
 
-type dirEntry struct {
-	f *zip.File
-}
+	zf, err := r.zipReader.Open(name)
+	if err != nil {
+		return nil, xerrors.Errorf("zipReader.Open() error: %w", err)
+	}
 
-func newDir(f *zip.File) *dirEntry {
-	var d dirEntry
-	d.f = f
-	return &d
-}
-
-func (d dirEntry) Name() string {
-	return d.f.Name
-}
-
-func (d dirEntry) IsDir() bool {
-	return d.f.Mode().IsDir()
-}
-
-func (d dirEntry) Type() fs.FileMode {
-	return d.f.Mode().Type()
-}
-
-func (d dirEntry) Info() (fs.FileInfo, error) {
-	return d.f.FileInfo(), nil
+	return zf, nil
 }
 
 func (r *reader) readDir(name string) ([]fs.DirEntry, error) {
@@ -87,13 +81,56 @@ func (r *reader) readDir(name string) ([]fs.DirEntry, error) {
 	var rtn []fs.DirEntry
 
 	for _, f := range files {
-		if strings.HasPrefix(f.Name, name) {
-			if f.Name != name {
-				rtn = append(rtn, newDir(f))
-			}
+		if isChild(f.Name, name) {
+			rtn = append(rtn, newDir(f))
 		}
 	}
 	return rtn, nil
+}
+
+func isChild(f1, f2 string) bool {
+
+	idx := strings.Index(f1, f2)
+	if idx != 0 {
+		return false
+	}
+
+	f := f1
+	if f2 != "" {
+		f = strings.Replace(f1, f2, "", 1)
+	} else {
+		f = "/" + f1
+	}
+
+	if f == "/" {
+		return false
+	}
+
+	idx = strings.LastIndex(f, "/")
+	if idx > 0 {
+		if len(f) != idx+1 {
+
+			return false
+		}
+	}
+
+	return true
+}
+
+func (r *reader) glob(ptn string) ([]string, error) {
+
+	files := r.zipReader.File
+	var rtn []string
+	var err error
+
+	for _, f := range files {
+		m, me := filepath.Match(ptn, f.Name)
+		errors.Join(err, me)
+		if m {
+			rtn = append(rtn, f.Name)
+		}
+	}
+	return rtn, err
 }
 
 func (r *reader) ReadAt(p []byte, off int64) (n int, err error) {
