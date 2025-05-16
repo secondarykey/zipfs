@@ -111,7 +111,7 @@ When "/examples/index.html" is accessed, index.html will be accessed on the FS s
 ### install 
 
 ```
-go install github.com/secondarykey/_cmd/zls
+go install github.com/secondarykey/zipfs/_cmd/zls@latest
 ```
 
 ### run
