@@ -8,30 +8,33 @@ import (
 )
 
 type dirEntry struct {
-	f *zip.File
+	//f *zip.File
+	name string
+	info fs.FileInfo
 }
 
 func newDir(f *zip.File) *dirEntry {
 	var d dirEntry
-	d.f = f
+	d.info = f.FileInfo()
+	n := filepath.Base(f.Name)
+	d.name = n
 	return &d
 }
 
 func (d dirEntry) Name() string {
-	n := filepath.Base(d.f.Name)
-	return n
+	return d.name
 }
 
 func (d dirEntry) IsDir() bool {
-	return d.f.Mode().IsDir()
+	return d.info.Mode().IsDir()
 }
 
 func (d dirEntry) Type() fs.FileMode {
-	return d.f.Mode().Type()
+	return d.info.Mode().Type()
 }
 
 func (d dirEntry) Info() (fs.FileInfo, error) {
-	return d.f.FileInfo(), nil
+	return d.info, nil
 }
 
 type rootFile struct {
