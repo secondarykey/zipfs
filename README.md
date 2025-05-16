@@ -105,6 +105,33 @@ http.Handle("/examples/",http.StripPrefix("/examples/",handler))
 
 When "/examples/index.html" is accessed, index.html will be accessed on the FS side.
 
-## Usage 
 
+## zls command
+
+### install 
+
+```
+go install github.com/secondarykey/_cmd/zls
+```
+
+### run
+
+```
+> zls -filter *.* xxxxxx.zip
+```
+
+-filter default *
+
+### result
+
+```
+<Root>/
+   xxxxx.xxxx
+   xxxxx.xxxx
+   xxxxx.xxxx
+   xxxxx.xxxx
+directory/
+   xxxxx.xxxx
+   xxxxx.xxxx
+```
 
