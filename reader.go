@@ -2,8 +2,11 @@ package zipfs
 
 import (
 	"archive/zip"
+	"errors"
 	"io"
 	"io/fs"
+	"path/filepath"
+	"strings"
 
 	"golang.org/x/xerrors"
 )
@@ -12,6 +15,7 @@ type reader struct {
 	dir  fs.FS
 	name string
 
+	root    *rootFile
 	zipFile fs.File
 
 	data      []byte
@@ -19,9 +23,17 @@ type reader struct {
 }
 
 func NewReader(dir fs.FS, name string) (*reader, error) {
+
+	info, err := fs.Stat(dir, name)
+	if err != nil {
+		return nil, xerrors.Errorf("FS Stat() error: %w", err)
+	}
+
 	var r reader
+	r.root = newRoot(info)
 	r.dir = dir
 	r.name = name
+
 	return &r, nil
 }
 
@@ -51,7 +63,77 @@ func (r *reader) init() error {
 }
 
 func (r *reader) Open(name string) (fs.File, error) {
-	return r.zipReader.Open(name)
+	if name == "" {
+		return r.root, nil
+	}
+
+	zf, err := r.zipReader.Open(name)
+	if err != nil {
+		return nil, xerrors.Errorf("zipReader.Open() error: %w", err)
+	}
+
+	return zf, nil
+}
+
+func (r *reader) readDir(name string) ([]fs.DirEntry, error) {
+
+	files := r.zipReader.File
+	var rtn []fs.DirEntry
+
+	for _, f := range files {
+		n := strings.ReplaceAll(f.Name, "\\", "/")
+		if isChild(n, name) {
+			rtn = append(rtn, newDir(f))
+		}
+	}
+	return rtn, nil
+}
+
+func isChild(f1, f2 string) bool {
+
+	idx := strings.Index(f1, f2)
+	if idx != 0 {
+		return false
+	}
+
+	f := f1
+	if f2 != "" {
+		f = strings.Replace(f1, f2, "", 1)
+	} else {
+		f = "/" + f1
+	}
+
+	if f == "/" {
+		return false
+	}
+
+	idx = strings.LastIndex(f, "/")
+	if idx > 0 {
+		if len(f) != idx+1 {
+
+			return false
+		}
+	}
+
+	return true
+}
+
+func (r *reader) glob(ptn string) ([]string, error) {
+
+	files := r.zipReader.File
+	var rtn []string
+	var err error
+
+	for _, f := range files {
+
+		name := strings.ReplaceAll(f.Name, "\\", "/")
+		m, me := filepath.Match(ptn, name)
+		errors.Join(err, me)
+		if m && !f.FileInfo().IsDir() {
+			rtn = append(rtn, name)
+		}
+	}
+	return rtn, err
 }
 
 func (r *reader) ReadAt(p []byte, off int64) (n int, err error) {
@@ -66,14 +148,20 @@ func (r *reader) ReadAt(p []byte, off int64) (n int, err error) {
 }
 
 func (r *reader) Close() error {
+
 	if r == nil {
 		return nil
 	}
+
 	r.data = nil
-	if r.zipFile == nil {
-		return nil
+	if r.zipReader != nil {
+		//r.zipReader.Close()
 	}
-	return r.zipFile.Close()
+
+	if r.zipFile != nil {
+		return r.zipFile.Close()
+	}
+	return nil
 }
 
 func (r *reader) IsClose() bool {
