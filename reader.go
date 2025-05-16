@@ -81,7 +81,8 @@ func (r *reader) readDir(name string) ([]fs.DirEntry, error) {
 	var rtn []fs.DirEntry
 
 	for _, f := range files {
-		if isChild(f.Name, name) {
+		n := strings.ReplaceAll(f.Name, "\\", "/")
+		if isChild(n, name) {
 			rtn = append(rtn, newDir(f))
 		}
 	}
@@ -124,10 +125,12 @@ func (r *reader) glob(ptn string) ([]string, error) {
 	var err error
 
 	for _, f := range files {
-		m, me := filepath.Match(ptn, f.Name)
+
+		name := strings.ReplaceAll(f.Name, "\\", "/")
+		m, me := filepath.Match(ptn, name)
 		errors.Join(err, me)
-		if m {
-			rtn = append(rtn, f.Name)
+		if m && !f.FileInfo().IsDir() {
+			rtn = append(rtn, name)
 		}
 	}
 	return rtn, err
